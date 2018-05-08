@@ -28,11 +28,12 @@
 
  @param manager XMPhotosRequestManager
  @param imageData Image data
+ @param asset PHAsset
  @param dataUTI UniformTypeIdentifier
  @param orientation UIImageOrientation
  @return Image data after editing.
  */
-- (NSData *)manager:(XMPhotosRequestManager *)manager editImageData:(NSData *)imageData dataUTI:(NSString *)dataUTI orientation:(UIImageOrientation)orientation;
+- (NSData *)manager:(XMPhotosRequestManager *)manager editImageData:(NSData *)imageData asset:(PHAsset *)asset dataUTI:(NSString *)dataUTI orientation:(UIImageOrientation)orientation;
 
 /**
  当图片导出完成，且保存到本地，会调用此方法。
@@ -49,8 +50,9 @@
 
  @param manager XMPhotosRequestManager
  @param asset PHAsset
+ @param error NSError
  */
-- (void)manager:(XMPhotosRequestManager *)manager exportFailed:(PHAsset *)asset;
+- (void)manager:(XMPhotosRequestManager *)manager exportFailed:(PHAsset *)asset error:(NSError *)error;
 
 @end
 

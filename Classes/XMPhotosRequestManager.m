@@ -430,13 +430,13 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         }
         asset.status = PHAssetStatusCompleted;
         id<XMPhotosRequestManagerDelegate> delegate = this.delegate;
-        BOOL hasError = nil != info[PHImageErrorKey];
+        NSError *error = info[PHImageErrorKey];
         //2、有导出错误
-        if (hasError) {
-            NSLog(@"Image ExportFailed: %@", info[PHImageErrorKey]);
+        if (nil != error) {
+//            NSLog(@"Image ExportFailed: %@", info[PHImageErrorKey]);
             [this decrementExportedCount];
-            if ([delegate respondsToSelector:@selector(manager:exportFailed:)]) {
-                [delegate manager:this exportFailed:asset];
+            if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
+                [delegate manager:this exportFailed:asset error:error];
             }
             [this exportAsset:nil];//导出下一个
             return;//取消
@@ -444,22 +444,23 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         
         //3、没有导出错误
         //
-        if ([delegate respondsToSelector:@selector(manager:editImageData:dataUTI:orientation:)]) {
-            imageData = [delegate manager:this editImageData:imageData dataUTI:dataUTI orientation:orientation];
+        if ([delegate respondsToSelector:@selector(manager:editImageData:asset:dataUTI:orientation:)]) {
+            imageData = [delegate manager:this editImageData:imageData asset:asset dataUTI:dataUTI orientation:orientation];
         }
         
         NSString *cachePath = [this absolutePathForCachePHAsset:asset];
         //4、是否保存到磁盘出错
-        hasError = ![imageData writeToFile:cachePath atomically:YES];
+        error = nil;
+        BOOL hasError = ![imageData writeToFile:cachePath options:NSDataWritingAtomic error:&error];
         if (hasError) {
-            NSLog(@"Image ExportFailed: writeToFile fail");
+//            NSLog(@"Image ExportFailed: writeToFile fail");
             [this decrementExportedCount];
             [[NSFileManager defaultManager] removeItemAtPath:cachePath error:NULL];
-            if ([delegate respondsToSelector:@selector(manager:exportFailed:)]) {
-                [delegate manager:this exportFailed:asset];
+            if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
+                [delegate manager:this exportFailed:asset error:error];
             }
         } else {
-            NSLog(@"Image ExportCompleted");
+//            NSLog(@"Image ExportCompleted");
             if ([delegate respondsToSelector:@selector(manager:exportCompleted:cachePath:)]) {
                 [delegate manager:this exportCompleted:asset cachePath:cachePath];
             }
@@ -484,14 +485,14 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         
         id<XMPhotosRequestManagerDelegate> delegate = this.delegate;
         //2、有导出错误
-        BOOL hasError = nil != info[PHImageErrorKey];
-        if (hasError) {
-            NSLog(@"Video ExportFailed: %@", info[PHImageErrorKey]);
+        NSError *error = info[PHImageErrorKey];
+        if (nil != error) {
+//            NSLog(@"Video ExportFailed: %@", info[PHImageErrorKey]);
             [this deleteExportingPHAsset:asset];
             [this decrementExportedCount];
             asset.status = PHAssetStatusCompleted;
-            if ([delegate respondsToSelector:@selector(manager:exportFailed:)]) {
-                [delegate manager:this exportFailed:asset];
+            if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
+                [delegate manager:this exportFailed:asset error:error];
             }
             [this exportAsset:nil];//导出下一个
             return;
@@ -524,7 +525,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         id<XMPhotosRequestManagerDelegate> delegate = this.delegate;
         switch (es.status) {
             case AVAssetExportSessionStatusCompleted:
-                NSLog(@"Video ExportCompleted");
+//                NSLog(@"Video ExportCompleted");
                 asset.status = PHAssetStatusCompleted;
                 if ([delegate respondsToSelector:@selector(manager:exportCompleted:cachePath:)]) {
                     [delegate manager:this exportCompleted:asset cachePath:es.outputURL.path];
@@ -532,12 +533,12 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
                 break;
                 
             case AVAssetExportSessionStatusFailed:
-                NSLog(@"Video ExportFailed: %@", es.error);
+//                NSLog(@"Video ExportFailed: %@", es.error);
                 [this decrementExportedCount];
                 asset.status = PHAssetStatusCompleted;
                 [[NSFileManager defaultManager] removeItemAtURL:es.outputURL error:NULL];
-                if ([delegate respondsToSelector:@selector(manager:exportFailed:)]) {
-                    [delegate manager:this exportFailed:asset];
+                if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
+                    [delegate manager:this exportFailed:asset error:es.error];
                 }
                 break;
                 
