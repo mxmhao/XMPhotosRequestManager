@@ -1,6 +1,6 @@
 //
-//  XM_Lock.h
-//  TMASHttp(iphone)
+//  XMLock.h
+//  XMPhotosRequestManager
 //
 //  Created by noontec on 2018/1/16.
 //  Copyright © 2018年 noontec. All rights reserved.
