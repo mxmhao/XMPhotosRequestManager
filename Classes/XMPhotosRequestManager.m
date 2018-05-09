@@ -5,6 +5,7 @@
 //  Created by noontec on 2018/5/2.
 //  Copyright © 2018年 mxm. All rights reserved.
 //
+//  相册导出管理类
 
 #import "XMPhotosRequestManager.h"
 #import "XMLock.h"
@@ -139,7 +140,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
 - (void)startRequest
 {
     XM_Lock(_lock_exported);
-    _suspended = NO;
+    _isAutoPaused = NO;
     _exportedCount = 0;
     XM_UnLock(_lock_exported);
     
@@ -170,6 +171,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     BOOL contains = [_assets containsObject:asset];
     XM_UnLock(_lock_assets);
     if (!contains) return;
+    if (PHAssetStatusPaused == asset.status || PHAssetStatusCompleted == asset.status) return;
     
     asset.status = PHAssetStatusPaused;
     PHImageManager *im = [PHImageManager defaultManager];
@@ -214,6 +216,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     BOOL contains = [_assets containsObject:asset];
     XM_UnLock(_lock_assets);
     if (!contains) return;
+    if (PHAssetStatusPaused != asset.status) return;
     
     asset.status = PHAssetStatusWaiting;
     XM_Lock(_lock_image);
@@ -243,8 +246,8 @@ typedef NS_ENUM(short, PHAssetStatus) {
 #pragma mark - 内部方法
 - (void)cancelAll
 {
-    XM_Lock(_lock_image);
     PHImageManager *im = [PHImageManager defaultManager];
+    XM_Lock(_lock_image);
     [_imageRequestIDs enumerateKeysAndObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(NSString * _Nonnull key, NSNumber * _Nonnull obj, BOOL * _Nonnull stop) {
         [im cancelImageRequest:obj.intValue];
     }];
@@ -291,7 +294,9 @@ typedef NS_ENUM(short, PHAssetStatus) {
 {
     XM_Lock(_lock_exported);
     ++_exportedCount;
-    _suspended = _exportedCount >= _autoPauseWhenCompleteNumber;
+    if (_autoPauseWhenCompleteNumber > 0) {
+        _isAutoPaused = _exportedCount >= _autoPauseWhenCompleteNumber;
+    }
     XM_UnLock(_lock_exported);
 }
 
@@ -299,7 +304,9 @@ typedef NS_ENUM(short, PHAssetStatus) {
 {
     XM_Lock(_lock_exported);
     --_exportedCount;
-    _suspended = _exportedCount >= _autoPauseWhenCompleteNumber;
+    if (_autoPauseWhenCompleteNumber > 0) {
+        _isAutoPaused = _exportedCount >= _autoPauseWhenCompleteNumber;
+    }
     XM_UnLock(_lock_exported);
 }
 
@@ -313,7 +320,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 - (void)concurrentExportAssets
 {
     XM_Lock(_lock_assets);
-    NSUInteger concurrentCount = ImageMaxConcurrent + VideoMaxConcurrent;
+    NSUInteger concurrentCount = ImageMaxConcurrent + VideoMaxConcurrent;//总并发数
     NSMutableArray *arr = [NSMutableArray arrayWithCapacity:concurrentCount];
     PHAsset *asset = nil;
     //挑选等待中的
@@ -340,9 +347,11 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 - (void)exportAsset:(PHAsset *)asset
 {
     XM_Lock(_lock_exported);
-    _suspended = _exportedCount >= _autoPauseWhenCompleteNumber;
+    if (_autoPauseWhenCompleteNumber > 0) {
+        _isAutoPaused = _exportedCount >= _autoPauseWhenCompleteNumber;
+    }
     XM_UnLock(_lock_exported);
-    if (_suspended) return;
+    if (_isAutoPaused) return;
     
     if (nil == asset) {
         XM_Lock(_lock_assets);
@@ -416,7 +425,6 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 - (void)exportImageAsset:(PHAsset *)asset
 {
     __weak typeof(self) this = self;
-//    BOOL isHEIF = [UIImage isHEIF:asset];
     [this incrementExportedCount];
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestImageDataForAsset:asset options:_imageOptions resultHandler:^(NSData * _Nullable imageData, NSString * _Nullable dataUTI, UIImageOrientation orientation, NSDictionary * _Nullable info) {
         [this deleteImageRequestIdForKey:asset.localIdentifier];
@@ -445,7 +453,8 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         //3、没有导出错误
         //
         if ([delegate respondsToSelector:@selector(manager:editImageData:asset:dataUTI:orientation:)]) {
-            imageData = [delegate manager:this editImageData:imageData asset:asset dataUTI:dataUTI orientation:orientation];
+            NSData *data = [delegate manager:this editImageData:imageData asset:asset dataUTI:dataUTI orientation:orientation];
+            if (nil != data) imageData = data;
         }
         
         NSString *cachePath = [this absolutePathForCachePHAsset:asset];

@@ -5,8 +5,11 @@
 //  Created by noontec on 2018/5/2.
 //  Copyright © 2018年 mxm. All rights reserved.
 //
+//  相册导出管理类
 
 #import <Photos/Photos.h>
+
+NS_ASSUME_NONNULL_BEGIN
 
 @class XMPhotosRequestManager;
 
@@ -14,8 +17,8 @@
 
 @optional
 /**
- 视频导出之前调用，你可以设置一些参数，但不能设置exportSession.outputURL。
- Call before video export.You can customize the Settings properties but exclude exportSession.outputURL
+ 视频导出之前调用，你可以设置一些参数，但不能设置exportSession.outputURL。<br/>
+ Call before video export.You can customize the Settings properties but exclude exportSession.outputURL.
 
  @param manager XMPhotosRequestManager
  @param exportSession AVAssetExportSession
@@ -23,7 +26,7 @@
 - (void)manager:(XMPhotosRequestManager *)manager customPropertyForExportSession:(AVAssetExportSession *)exportSession;
 
 /**
- 当图片导出完成，但尚未保存到本地，会调用此方法。
+ 当图片导出完成，但尚未保存到本地，会调用此方法。<br/>
  This method is called when the image export is complete but has not been saved to the local.
 
  @param manager XMPhotosRequestManager
@@ -33,10 +36,10 @@
  @param orientation UIImageOrientation
  @return Image data after editing.
  */
-- (NSData *)manager:(XMPhotosRequestManager *)manager editImageData:(NSData *)imageData asset:(PHAsset *)asset dataUTI:(NSString *)dataUTI orientation:(UIImageOrientation)orientation;
+- (nullable NSData *)manager:(XMPhotosRequestManager *)manager editImageData:(NSData *)imageData asset:(PHAsset *)asset dataUTI:(NSString *)dataUTI orientation:(UIImageOrientation)orientation;
 
 /**
- 当图片导出完成，且保存到本地，会调用此方法。
+ 当图片导出完成，且保存到本地，会调用此方法。<br/>
  This method is called when the image export is completed and saved to the local.
 
  @param manager XMPhotosRequestManager
@@ -61,19 +64,25 @@
 /** delegate */
 @property (nonatomic, weak) id<XMPhotosRequestManagerDelegate> delegate;
 /** file export cache directory */
-@property (nonatomic, copy, readonly) NSString *cacheDir;
-/** PHImageRequestOptions */
+@property (nonatomic, copy, readonly, nonnull) NSString *cacheDir;
+/** PHImageRequestOptions. Default is nil */
 @property (nonatomic, strong) PHImageRequestOptions *imageOptions;
-/** PHVideoRequestOptions */
+/** PHVideoRequestOptions. Default is nil */
 @property (nonatomic, strong) PHVideoRequestOptions *videoOptions;
-/** AVAssetExportPreset e.g. AVAssetExportPresetHighestQuality. Default is AVAssetExportPresetPassthrough */
+/** AVAssetExportPreset e.g. AVAssetExportPresetHighestQuality. Default is AVAssetExportPresetPassthrough. */
 @property (nonatomic, copy) NSString *videoExportPreset;
-/** 每次完成导出n个就自动暂停，可以调用 -startRequest 继续导出，默认是4
+/**
+ 每次完成导出n个就自动暂停，0表示不自动暂停，默认是4。可以调用-startRequest继续导出。<br/>
  Automatically pause when the (n) exports are completed.
- Call -startRequest can continue to export. Default is 4 */
+ 0 means no automatic pause. Default is 4.
+ Call -startRequest can continue to export.
+ */
 @property (nonatomic, assign) NSUInteger autoPauseWhenCompleteNumber;
-/** Has it been suspended? Call -startRequest can continue to export. */
-@property (nonatomic, assign, readonly) BOOL suspended;
+/**
+ 是否已自动暂停。可以调用-startRequest继续导出。<br/>
+ Has it been automatic paused? Call -startRequest can continue to export.
+ */
+@property (nonatomic, assign, readonly) BOOL isAutoPaused;
 
 - (instancetype)initWithCacheDir:(NSString *)cacheDir NS_DESIGNATED_INITIALIZER;
 
@@ -83,8 +92,7 @@
 /** start request */
 - (void)startRequest;
 
-/** stop request will delete all PHAssets.
- Call -startRequest can continue to export. */
+/** stop request will delete all PHAssets. */
 - (void)stopRequest;
 
 - (void)pause:(PHAsset *)asset;
@@ -94,3 +102,5 @@
 - (void)resumeAll;
 
 @end
+
+NS_ASSUME_NONNULL_END

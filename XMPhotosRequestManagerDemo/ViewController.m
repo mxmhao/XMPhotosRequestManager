@@ -69,15 +69,32 @@
     return cell;
 }
 
+#pragma mark - XMPhotosRequestManager delegate
 - (void)manager:(XMPhotosRequestManager *)manager exportCompleted:(PHAsset *)asset cachePath:(NSString *)cachePath
 {
     static int count = 0;
     ++count;
     NSLog(@"\n%d, %@ 导出：%f, -- isMain: %d", count, [asset valueForKey:@"filename"], CACurrentMediaTime(), [NSThread isMainThread]);
     [[NSFileManager defaultManager] removeItemAtPath:cachePath error:NULL];
-    if (manager.suspended) {
+    if (manager.isAutoPaused) {
         [manager startRequest];
     }
+}
+
+- (void)manager:(XMPhotosRequestManager *)manager customPropertyForExportSession:(AVAssetExportSession *)exportSession
+{
+    NSLog(@"设置exportSession");
+}
+
+- (NSData *)manager:(XMPhotosRequestManager *)manager editImageData:(NSData *)imageData asset:(PHAsset *)asset dataUTI:(NSString *)dataUTI orientation:(UIImageOrientation)orientation
+{
+    NSLog(@"编辑imageData");
+    return nil;
+}
+
+- (void)manager:(XMPhotosRequestManager *)manager exportFailed:(PHAsset *)asset error:(NSError *)error
+{
+    NSLog(@"导出失败：%@", error);
 }
 
 @end
