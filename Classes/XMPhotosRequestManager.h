@@ -2,7 +2,7 @@
 //  XMPhotosRequestManager.h
 //  XMPhotosRequestManager
 //
-//  Created by noontec on 2018/5/2.
+//  Created by mxmhao on 2018/5/2.
 //  Copyright © 2018年 mxm. All rights reserved.
 //
 //  相册导出管理类

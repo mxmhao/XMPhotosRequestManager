@@ -2,7 +2,7 @@
 //  XMPhotosRequestManager.m
 //  XMPhotosRequestManager
 //
-//  Created by noontec on 2018/5/2.
+//  Created by mxmhao on 2018/5/2.
 //  Copyright © 2018年 mxm. All rights reserved.
 //
 //  相册导出管理类
@@ -70,7 +70,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
 - (instancetype)initWithCacheDir:(NSString *)cacheDir
 {
     BOOL isDir = NO;
-    NSAssert([[NSFileManager defaultManager] fileExistsAtPath:cacheDir isDirectory:&isDir] || !isDir, @"CacheDir does not exist!");
+    NSAssert([[NSFileManager defaultManager] fileExistsAtPath:cacheDir isDirectory:&isDir] || !isDir, @"CacheDir does not exist!");//文件夹不存在
     
     self = [super init];
     if (self) {
@@ -390,8 +390,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 - (NSString *)absolutePathForCachePHAsset:(PHAsset *)asset
 {
     NSString *filename = [asset valueForKey:@"filename"];
-//    PHAssetResource *res = [PHAssetResource assetResourcesForAsset:asset];
-//    NSString *filename = res.originalFilename;
+//    NSString *filename = [PHAssetResource assetResourcesForAsset:asset].firstObject.originalFilename;
     BOOL isDir = YES;
     NSString *absolutePath = [_cacheDir stringByAppendingPathComponent:filename];
     NSFileManager *fm = [NSFileManager defaultManager];

@@ -1,9 +1,9 @@
 //
 //  XMLock.h
-//  XMPhotosRequestManager
+//  XMLock
 //
-//  Created by noontec on 2018/1/16.
-//  Copyright © 2018年 noontec. All rights reserved.
+//  Created by mxmhao on 2018/1/16.
+//  Copyright © 2018年 mxm. All rights reserved.
 //
 
 #ifndef XMLock_h
