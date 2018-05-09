@@ -28,8 +28,10 @@
     _prm = [[XMPhotosRequestManager alloc] initWithCacheDir:NSTemporaryDirectory()];
     NSMutableArray *arr = [NSMutableArray arrayWithCapacity:_result.count];
     
+    NSMutableArray *arr1 = [NSMutableArray arrayWithCapacity:_result.count];
     for (NSUInteger i = 0, count = _result.count; i < count; ++i) {
         [arr addObject:_result[i]];
+        NSLog(@"%@", _result[i].localIdentifier);
     }
     [_prm addPHAssets:arr];
     _prm.delegate = self;

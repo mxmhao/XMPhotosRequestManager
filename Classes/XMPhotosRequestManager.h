@@ -16,6 +16,15 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol XMPhotosRequestManagerDelegate <NSObject>
 
 @optional
+
+/**
+ 即将导出asset。<br/>Asset is about to export.
+
+ @param manager XMPhotosRequestManager
+ @param asset 将要导出的PHAsset。<br/>The PHAsset to be exported.
+ */
+- (void)manager:(XMPhotosRequestManager *)manager willRequest:(PHAsset *)asset;
+
 /**
  视频导出之前调用，你可以设置一些参数，但不能设置exportSession.outputURL。<br/>
  Call before video export.You can customize the Settings properties but exclude exportSession.outputURL.

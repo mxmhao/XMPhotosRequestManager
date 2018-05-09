@@ -425,6 +425,9 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 {
     __weak typeof(self) this = self;
     [this incrementExportedCount];
+    if ([_delegate respondsToSelector:@selector(manager:willRequest:)]) {
+        [_delegate manager:self willRequest:asset];
+    }
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestImageDataForAsset:asset options:_imageOptions resultHandler:^(NSData * _Nullable imageData, NSString * _Nullable dataUTI, UIImageOrientation orientation, NSDictionary * _Nullable info) {
         [this deleteImageRequestIdForKey:asset.localIdentifier];
         [this deleteExportingPHAsset:asset];
@@ -482,6 +485,9 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 {//AVAssetExportPresetHighestQuality
     __weak typeof(self) this = self;
     [this incrementExportedCount];
+    if ([_delegate respondsToSelector:@selector(manager:willRequest:)]) {
+        [_delegate manager:self willRequest:asset];
+    }
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestExportSessionForVideo:asset options:_videoOptions exportPreset:_videoExportPreset resultHandler:^(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info) {
         [this deleteVideoRequestIdForKey:asset.localIdentifier];
         //1、是否取消
@@ -507,8 +513,8 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         }
         
         //3、设置参数
-        exportSession.shouldOptimizeForNetworkUse = YES;//为网络播放做优化
-        exportSession.outputFileType = AVFileTypeMPEG4;//输出的文件格式mp4
+//        exportSession.shouldOptimizeForNetworkUse = YES;//为网络播放做优化
+//        exportSession.outputFileType = AVFileTypeMPEG4;//输出的文件格式mp4
         if ([delegate respondsToSelector:@selector(manager:customPropertyForExportSession:)]) {
             [delegate manager:this customPropertyForExportSession:exportSession];
         }
