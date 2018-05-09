@@ -74,7 +74,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     
     self = [super init];
     if (self) {
-        _cacheDir = cacheDir;
+        _cacheDir = [cacheDir copy];
         _autoPauseWhenCompleteNumber = 4;
         _exportedCount = 0;
         _videoExportPreset = AVAssetExportPresetPassthrough;
