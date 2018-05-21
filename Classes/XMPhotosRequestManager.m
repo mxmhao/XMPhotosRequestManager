@@ -13,8 +13,8 @@
 
 typedef NS_ENUM(short, PHAssetStatus) {
     PHAssetStatusWaiting = 0,
-    PHAssetStatusPaused,
     PHAssetStatusExporting,
+    PHAssetStatusPaused,
     PHAssetStatusCompleted
 };
 
@@ -143,14 +143,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     _isAutoPaused = NO;
     _exportedCount = 0;
     XM_UnLock(_lock_exported);
-    
-    XM_Lock(_lock_image);
-    NSUInteger count = _imageRequestIDs.count;
-    XM_UnLock(_lock_image);
-    XM_Lock(_lock_video);
-    NSUInteger videoCount = _videoRequestIDs.count + _exportSessions.count;
-    XM_UnLock(_lock_video);
-    if (count < ImageMaxConcurrent || videoCount < VideoMaxConcurrent) [self concurrentExportAssets];//没有达到最大并发数
+    [self concurrentExportAssets];
 }
 
 - (void)stopRequest
@@ -219,15 +212,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     if (PHAssetStatusPaused != asset.status) return;
     
     asset.status = PHAssetStatusWaiting;
-    XM_Lock(_lock_image);
-    NSUInteger count = _imageRequestIDs.count;
-    XM_UnLock(_lock_image);
-    
-    XM_Lock(_lock_video);
-    NSUInteger videoCount = _videoRequestIDs.count + _exportSessions.count;
-    XM_UnLock(_lock_video);
-    
-    if (count < ImageMaxConcurrent || videoCount < VideoMaxConcurrent) [self concurrentExportAssets];//没有达到最大并发数
+    [self concurrentExportAssets];
 }
 
 - (void)resumeAll
@@ -319,6 +304,15 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
  */
 - (void)concurrentExportAssets
 {
+    XM_Lock(_lock_image);
+    NSUInteger icount = _imageRequestIDs.count;
+    XM_UnLock(_lock_image);
+    
+    XM_Lock(_lock_video);
+    NSUInteger vcount = _videoRequestIDs.count + _exportSessions.count;
+    XM_UnLock(_lock_video);
+    if (icount >= ImageMaxConcurrent && vcount >= VideoMaxConcurrent) return;
+    
     XM_Lock(_lock_assets);
     NSUInteger concurrentCount = ImageMaxConcurrent + VideoMaxConcurrent;//总并发数
     NSMutableArray *arr = [NSMutableArray arrayWithCapacity:concurrentCount];
@@ -334,6 +328,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         }
     }
     XM_UnLock(_lock_assets);
+    
     [arr enumerateObjectsUsingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         [self exportAsset:obj];
     }];
@@ -341,7 +336,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 
 /**
  单个导出，当asset为nil时，默认会从_assets挑选一个
-
+ 
  @param asset PHAsset
  */
 - (void)exportAsset:(PHAsset *)asset
@@ -377,8 +372,8 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         XM_UnLock(_lock_video);
         if (videoCount >= VideoMaxConcurrent) return;
     }
-    asset.status = PHAssetStatusExporting;
     
+    asset.status = PHAssetStatusExporting;
     if (asset.mediaType == PHAssetMediaTypeImage) {
         [self exportImageAsset:asset];
     } else if (asset.mediaType == PHAssetMediaTypeVideo) {
@@ -390,44 +385,45 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 - (NSString *)absolutePathForCachePHAsset:(PHAsset *)asset
 {
     NSString *filename = [asset valueForKey:@"filename"];
-//    NSString *filename = [PHAssetResource assetResourcesForAsset:asset].firstObject.originalFilename;
-    BOOL isDir = YES;
+    //    NSString *filename = [PHAssetResource assetResourcesForAsset:asset].firstObject.originalFilename;
     NSString *absolutePath = [_cacheDir stringByAppendingPathComponent:filename];
     NSFileManager *fm = [NSFileManager defaultManager];
     XM_Lock(_lock_filename);
-    if ([fm fileExistsAtPath:absolutePath isDirectory:&isDir] && !isDir) {
-        //获得文件名(不带后缀)
-        NSString *name = [filename stringByDeletingPathExtension];
-        //获得文件的后缀名(不带'.')
-        NSString *suffix = [filename pathExtension];
-        NSString *format = nil;
-        if (nil == suffix || suffix.length == 0) {
-            format = [name stringByAppendingString:@"(%lu)"];
-//            suffix = @"";
-        } else {
-            format = [name stringByAppendingFormat:@"(%@).%@", @"%lu", suffix];
-//            suffix = [@"." stringByAppendingString:suffix];
-        }
-        for (NSUInteger i = 0; i <= NSUIntegerMax; ++i) {
-            filename = [NSString stringWithFormat:format, (unsigned long)i];
-//            filename = [NSString stringWithFormat:@"%@(%lu)%@", name, (unsigned long)i, suffix];
-            absolutePath = [_cacheDir stringByAppendingPathComponent:filename];
-            if (!([fm fileExistsAtPath:absolutePath isDirectory:&isDir] && !isDir)) {
-                break;
-            }
-        }
-    }
+    BOOL exist = [fm fileExistsAtPath:absolutePath];
     XM_UnLock(_lock_filename);
+    if (!exist) return absolutePath;
+    
+    XM_Lock(_lock_filename);
+    NSString *name = [filename stringByDeletingPathExtension];//获得文件名(不带后缀)
+    NSString *suffix = [filename pathExtension];//获得文件的后缀名(不带'.')
+    NSString *format = nil;
+    if (nil == suffix || suffix.length == 0) {//没有后缀
+        format = [name stringByAppendingString:@"(%lu)"];
+    } else {
+        format = [name stringByAppendingFormat:@"(%@).%@", @"%lu", suffix];
+    }//format = @"name(%lu)" 或者 @"name(%lu).suffix"
+    for (NSUInteger i = 0; i <= NSUIntegerMax; ++i) {
+        filename = [NSString stringWithFormat:format, (unsigned long)i];
+        absolutePath = [_cacheDir stringByAppendingPathComponent:filename];
+        if (![fm fileExistsAtPath:absolutePath]) {
+            break;
+        }
+        filename = nil;
+    }
+    //    if (nil == filename) {//那就只能用UUID做文件名了
+    //    }
+    XM_UnLock(_lock_filename);
+    
     return absolutePath;
 }
 
 - (void)exportImageAsset:(PHAsset *)asset
 {
-    __weak typeof(self) this = self;
-    [this incrementExportedCount];
+    [self incrementExportedCount];
     if ([_delegate respondsToSelector:@selector(manager:willRequest:)]) {
         [_delegate manager:self willRequest:asset];
     }
+    __weak typeof(self) this = self;
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestImageDataForAsset:asset options:_imageOptions resultHandler:^(NSData * _Nullable imageData, NSString * _Nullable dataUTI, UIImageOrientation orientation, NSDictionary * _Nullable info) {
         [this deleteImageRequestIdForKey:asset.localIdentifier];
         [this deleteExportingPHAsset:asset];
@@ -443,7 +439,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         NSError *error = info[PHImageErrorKey];
         //2、有导出错误
         if (nil != error) {
-//            NSLog(@"Image ExportFailed: %@", info[PHImageErrorKey]);
+            //            NSLog(@"Image ExportFailed: %@", info[PHImageErrorKey]);
             [this decrementExportedCount];
             if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
                 [delegate manager:this exportFailed:asset error:error];
@@ -464,14 +460,14 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         error = nil;
         BOOL hasError = ![imageData writeToFile:cachePath options:NSDataWritingAtomic error:&error];
         if (hasError) {
-//            NSLog(@"Image ExportFailed: writeToFile fail");
+            //            NSLog(@"Image ExportFailed: writeToFile fail");
             [this decrementExportedCount];
             [[NSFileManager defaultManager] removeItemAtPath:cachePath error:NULL];
             if ([delegate respondsToSelector:@selector(manager:exportFailed:error:)]) {
                 [delegate manager:this exportFailed:asset error:error];
             }
         } else {
-//            NSLog(@"Image ExportCompleted");
+            //            NSLog(@"Image ExportCompleted");
             if ([delegate respondsToSelector:@selector(manager:exportCompleted:cachePath:)]) {
                 [delegate manager:this exportCompleted:asset cachePath:cachePath];
             }
@@ -483,11 +479,11 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 
 - (void)exportVideoAsset:(PHAsset *)asset
 {//AVAssetExportPresetHighestQuality
-    __weak typeof(self) this = self;
-    [this incrementExportedCount];
+    [self incrementExportedCount];
     if ([_delegate respondsToSelector:@selector(manager:willRequest:)]) {
         [_delegate manager:self willRequest:asset];
     }
+    __weak typeof(self) this = self;
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestExportSessionForVideo:asset options:_videoOptions exportPreset:_videoExportPreset resultHandler:^(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info) {
         [this deleteVideoRequestIdForKey:asset.localIdentifier];
         //1、是否取消
@@ -501,7 +497,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         //2、有导出错误
         NSError *error = info[PHImageErrorKey];
         if (nil != error) {
-//            NSLog(@"Video ExportFailed: %@", info[PHImageErrorKey]);
+            //            NSLog(@"Video ExportFailed: %@", info[PHImageErrorKey]);
             [this deleteExportingPHAsset:asset];
             [this decrementExportedCount];
             asset.status = PHAssetStatusCompleted;
@@ -513,8 +509,8 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         }
         
         //3、设置参数
-//        exportSession.shouldOptimizeForNetworkUse = YES;//为网络播放做优化
-//        exportSession.outputFileType = AVFileTypeMPEG4;//输出的文件格式mp4
+        exportSession.shouldOptimizeForNetworkUse = YES;//为网络播放做优化
+        exportSession.outputFileType = AVFileTypeMPEG4;//输出的文件格式mp4
         if ([delegate respondsToSelector:@selector(manager:customPropertyForExportSession:)]) {
             [delegate manager:this customPropertyForExportSession:exportSession];
         }
@@ -539,7 +535,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
         id<XMPhotosRequestManagerDelegate> delegate = this.delegate;
         switch (es.status) {
             case AVAssetExportSessionStatusCompleted:
-//                NSLog(@"Video ExportCompleted");
+                //                NSLog(@"Video ExportCompleted");
                 asset.status = PHAssetStatusCompleted;
                 if ([delegate respondsToSelector:@selector(manager:exportCompleted:cachePath:)]) {
                     [delegate manager:this exportCompleted:asset cachePath:es.outputURL.path];
@@ -547,7 +543,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
                 break;
                 
             case AVAssetExportSessionStatusFailed:
-//                NSLog(@"Video ExportFailed: %@", es.error);
+                //                NSLog(@"Video ExportFailed: %@", es.error);
                 [this decrementExportedCount];
                 asset.status = PHAssetStatusCompleted;
                 [[NSFileManager defaultManager] removeItemAtURL:es.outputURL error:NULL];
@@ -572,7 +568,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 {
     __block BOOL isHEIF = NO;
     if (@available(iOS 11.0, *)) {
-        [[PHAssetResource assetResourcesForAsset:phAsset] enumerateObjectsUsingBlock:^(PHAssetResource * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        [[PHAssetResource assetResourcesForAsset:phAsset] enumerateObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(PHAssetResource * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
             NSString *UTI = obj.uniformTypeIdentifier;
             if ([UTI isEqualToString:@"public.heif"] || [UTI isEqualToString:@"public.heic"]) {
                 isHEIF = YES;
@@ -580,10 +576,10 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
             }
         }];
     }/* else {//小于iOS11就返回NO
-        NSString *UTI = [phAsset valueForKey:@"uniformTypeIdentifier"];
-        isHEIF = [UTI isEqualToString:@"public.heif"] || [UTI isEqualToString:@"public.heic"];
-        
-    }*/
+      NSString *UTI = [phAsset valueForKey:@"uniformTypeIdentifier"];
+      isHEIF = [UTI isEqualToString:@"public.heif"] || [UTI isEqualToString:@"public.heic"];
+      
+      }*/
     return isHEIF;
 }
 
