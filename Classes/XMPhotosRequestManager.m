@@ -87,6 +87,8 @@ typedef NS_ENUM(short, PHAssetStatus) {
         _lock_assets = XM_CreateLock();
         _lock_exported = XM_CreateLock();
         _lock_filename = XM_CreateLock();
+        
+//        _queue = dispatch_queue_create("com.xm_prm.queue", DISPATCH_QUEUE_SERIAL);
     }
     return self;
 }
@@ -109,8 +111,6 @@ typedef NS_ENUM(short, PHAssetStatus) {
     NSMutableArray *imageIds = [NSMutableArray array];
     NSMutableArray *videoIds = [NSMutableArray array];
     NSMutableArray *sessions = [NSMutableArray array];
-    XM_Lock(_lock_image);
-    XM_Lock(_lock_video);
     [phassets enumerateObjectsUsingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         NSNumber *rid = self->_imageRequestIDs[obj.localIdentifier];
         if (nil != rid) {
@@ -129,12 +129,13 @@ typedef NS_ENUM(short, PHAssetStatus) {
         }
         [obj clearStatus];
     }];
-    [_imageRequestIDs removeObjectsForKeys:imageIds];
+    
+    ArrayThreadSecureDeleteObjects(_lock_assets, _assets, phassets);
+    DictionaryThreadSecureDeleteObjectsForKeys(_lock_image,  _imageRequestIDs, imageIds);
+    XM_Lock(_lock_video);
     [_videoRequestIDs removeObjectsForKeys:videoIds];
     [_exportSessions removeObjectsForKeys:sessions];
     XM_UnLock(_lock_video);
-    XM_UnLock(_lock_image);
-    ArrayThreadSecureDeleteObjects(_lock_assets, _assets, phassets);
 }
 
 - (void)startRequest
@@ -148,14 +149,14 @@ typedef NS_ENUM(short, PHAssetStatus) {
 
 - (void)stopRequest
 {
+    [self cancelAll];
+    
     XM_Lock(_lock_assets);
     [_assets enumerateObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         [obj clearStatus];
     }];
     [_assets removeAllObjects];
-    XM_UnLock(_lock_assets);
-    
-    [self cancelAll];
+    XM_UnLock(_lock_assets);    
 }
 
 - (void)pause:(PHAsset *)asset
@@ -163,29 +164,35 @@ typedef NS_ENUM(short, PHAssetStatus) {
     XM_Lock(_lock_assets);
     BOOL contains = [_assets containsObject:asset];
     XM_UnLock(_lock_assets);
-    if (!contains) return;
-    if (PHAssetStatusPaused == asset.status || PHAssetStatusCompleted == asset.status) return;
+    if (!contains || PHAssetStatusPaused == asset.status || PHAssetStatusCompleted == asset.status) return;
     
     asset.status = PHAssetStatusPaused;
     PHImageManager *im = [PHImageManager defaultManager];
     XM_Lock(_lock_image);
     NSNumber *rid = _imageRequestIDs[asset.localIdentifier];
     if (nil != rid) {
-        [im cancelImageRequest:rid.intValue];
         [_imageRequestIDs removeObjectForKey:asset.localIdentifier];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [im cancelImageRequest:rid.intValue];//貌似主线程调用会与其回调block形成死锁
+        });
     }
     XM_UnLock(_lock_image);
     
     XM_Lock(_lock_video);
     rid = _videoRequestIDs[asset.localIdentifier];
     if (nil != rid) {
-        [im cancelImageRequest:rid.intValue];
         [_videoRequestIDs removeObjectForKey:asset.localIdentifier];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [im cancelImageRequest:rid.intValue];//貌似主线程调用会与其回调block形成死锁
+        });
     }
+    
     AVAssetExportSession *es = _exportSessions[asset.localIdentifier];
     if (nil != es) {
-        [es cancelExport];
         [_exportSessions removeObjectForKey:asset.localIdentifier];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [es cancelExport];//貌似主线程调用会与其回调block形成死锁
+        });
     }
     XM_UnLock(_lock_video);
 }
@@ -208,8 +215,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
     XM_Lock(_lock_assets);
     BOOL contains = [_assets containsObject:asset];
     XM_UnLock(_lock_assets);
-    if (!contains) return;
-    if (PHAssetStatusPaused != asset.status) return;
+    if (!contains || PHAssetStatusPaused != asset.status) return;
     
     asset.status = PHAssetStatusWaiting;
     [self concurrentExportAssets];
@@ -234,19 +240,25 @@ typedef NS_ENUM(short, PHAssetStatus) {
     PHImageManager *im = [PHImageManager defaultManager];
     XM_Lock(_lock_image);
     [_imageRequestIDs enumerateKeysAndObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(NSString * _Nonnull key, NSNumber * _Nonnull obj, BOOL * _Nonnull stop) {
-        [im cancelImageRequest:obj.intValue];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [im cancelImageRequest:obj.intValue];//貌似主线程调用会与其回调block形成死锁
+        });
     }];
     [_imageRequestIDs removeAllObjects];
     XM_UnLock(_lock_image);
     
     XM_Lock(_lock_video);
     [_videoRequestIDs enumerateKeysAndObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(NSString * _Nonnull key, NSNumber * _Nonnull obj, BOOL * _Nonnull stop) {
-        [im cancelImageRequest:obj.intValue];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [im cancelImageRequest:obj.intValue];//貌似主线程调用会与其回调block形成死锁
+        });
     }];
     [_videoRequestIDs removeAllObjects];
     
     [_exportSessions enumerateKeysAndObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(NSString * _Nonnull key, AVAssetExportSession * _Nonnull obj, BOOL * _Nonnull stop) {
-        [obj cancelExport];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [obj cancelExport];//貌似主线程调用会与其回调block形成死锁
+        });
     }];
     [_exportSessions removeAllObjects];
     XM_UnLock(_lock_video);
@@ -425,8 +437,8 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
     }
     __weak typeof(self) this = self;
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestImageDataForAsset:asset options:_imageOptions resultHandler:^(NSData * _Nullable imageData, NSString * _Nullable dataUTI, UIImageOrientation orientation, NSDictionary * _Nullable info) {
-        [this deleteImageRequestIdForKey:asset.localIdentifier];
         [this deleteExportingPHAsset:asset];
+        [this deleteImageRequestIdForKey:asset.localIdentifier];
         
         //1、是否取消
         if ([info[PHImageCancelledKey] boolValue]) {
@@ -434,6 +446,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
             [this exportAsset:nil];//导出下一个
             return;//取消
         }
+        
         asset.status = PHAssetStatusCompleted;
         id<XMPhotosRequestManagerDelegate> delegate = this.delegate;
         NSError *error = info[PHImageErrorKey];
@@ -486,6 +499,7 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
     __weak typeof(self) this = self;
     PHImageRequestID requestId = [[PHImageManager defaultManager] requestExportSessionForVideo:asset options:_videoOptions exportPreset:_videoExportPreset resultHandler:^(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info) {
         [this deleteVideoRequestIdForKey:asset.localIdentifier];
+        
         //1、是否取消
         if ([info[PHImageCancelledKey] boolValue]) {
             [this decrementExportedCount];

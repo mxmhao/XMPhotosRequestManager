@@ -17,20 +17,30 @@
 
 typedef dispatch_semaphore_t XMLock;
 
+#pragma mark - 通用
+
+/**
+ NSMutableArray, NSMutableDictionary, NSMutableSet, <br/>NSMutableOrderedSet, NSHashTable, NSMapTable;
+ 以上类可以使用
+
+ @param lock XMLock
+ @param obj 实例集合类型
+ */
+NS_INLINE
+void RemoveAllObjectsOnThreadSecure(XMLock lock, id obj)
+{
+    XM_Lock(lock);
+    [obj removeAllObjects];
+    XM_UnLock(lock);
+}
+
+#pragma mark - NSMutableArray
 //线程安全，数组删除实例
 NS_INLINE
 void ArrayThreadSecureDeleteObject(XMLock lock, NSMutableArray *arr, id obj)
 {
     XM_Lock(lock);
     [arr removeObject:obj];
-    XM_UnLock(lock);
-}
-
-NS_INLINE
-void ArrayThreadSecureDeleteAllObjects(XMLock lock, NSMutableArray *arr)
-{
-    XM_Lock(lock);
-    [arr removeAllObjects];
     XM_UnLock(lock);
 }
 
@@ -59,6 +69,7 @@ void ArrayThreadSecureAddObjects(XMLock lock, NSMutableArray *arr, NSArray *objs
     XM_UnLock(lock);
 }
 
+#pragma mark - NSMutableDictionary
 //线程安全，字典删除实例
 NS_INLINE
 void DictionaryThreadSecureDeleteObjectForKey(XMLock lock, NSMutableDictionary *dic, id key)
