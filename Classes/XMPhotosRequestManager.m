@@ -96,6 +96,8 @@ typedef NS_ENUM(short, PHAssetStatus) {
 #pragma mark - 外部方法
 - (void)addPHAssets:(NSArray<PHAsset *> *)phassets
 {
+    if (nil == phassets || phassets.count == 0) return;
+    
     [phassets enumerateObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         if ([obj hasNotStatus]) {
             obj.status = PHAssetStatusWaiting;
@@ -106,6 +108,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
 
 - (void)deletePHAssets:(NSArray<PHAsset *> *)phassets
 {
+    if (nil == phassets || phassets.count == 0) return;
     //检测有没正在导出的，若有，就取消
     PHImageManager *im = [PHImageManager defaultManager];
     NSMutableArray *imageIds = [NSMutableArray array];
@@ -156,7 +159,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
         [obj clearStatus];
     }];
     [_assets removeAllObjects];
-    XM_UnLock(_lock_assets);    
+    XM_UnLock(_lock_assets);
 }
 
 - (void)pause:(PHAsset *)asset
@@ -198,7 +201,7 @@ typedef NS_ENUM(short, PHAssetStatus) {
 }
 
 - (void)pauseAll
-{
+{//这里的顺序不能变
     XM_Lock(_lock_assets);
     [_assets enumerateObjectsWithOptions:NSEnumerationConcurrent usingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         if (PHAssetStatusExporting == obj.status || PHAssetStatusWaiting == obj.status) {
