@@ -20,11 +20,10 @@ typedef dispatch_semaphore_t XMLock;
 #pragma mark - 通用
 
 /**
- NSMutableArray, NSMutableDictionary, NSMutableSet, <br/>NSMutableOrderedSet, NSHashTable, NSMapTable;
- 以上类可以使用
-
+ 清空obj的数据
+ 
  @param lock XMLock
- @param obj 实例集合类型
+ @param obj NSMutableArray, NSMutableDictionary, NSMutableSet, <br/>NSMutableOrderedSet, NSHashTable, NSMapTable, NSCache
  */
 NS_INLINE
 void RemoveAllObjectsOnThreadSecure(XMLock lock, id obj)
@@ -33,6 +32,86 @@ void RemoveAllObjectsOnThreadSecure(XMLock lock, id obj)
     [obj removeAllObjects];
     XM_UnLock(lock);
 }
+
+
+/**
+ 删除集合arr的obj
+ 
+ @param lock XMLock
+ @param arr NSMutableArray, NSMutableSet, NSMutableOrderedSet, <br/>NSHashTable, NSCountedSet
+ @param obj 要删除的obj
+ */
+NS_INLINE
+void RemoveObjectOnThreadSecure(XMLock lock, id arr, id obj)
+{
+    XM_Lock(lock);
+    [arr removeObject:obj];
+    XM_UnLock(lock);
+}
+
+/**
+ 集合arr添加obj
+ 
+ @param lock XMLock
+ @param arr NSMutableArray, NSMutableSet, NSMutableOrderedSet, <br/>NSHashTable, NSCountedSet, NSAutoreleasePool
+ @param obj 要添加的obj
+ */
+NS_INLINE
+void AddObjectOnThreadSecure(XMLock lock, id arr, id obj)
+{
+    XM_Lock(lock);
+    [arr addObject:obj];
+    XM_UnLock(lock);
+}
+
+//NSUserDefaults是线程安全的，不要使用此方法
+/**
+ 根据key删除obj
+ 
+ @param lock XMLock
+ @param dic NSMutableDictionary, NSMapTable, NSCache, <br/>NSUbiquitousKeyValueStore
+ @param key 键
+ */
+NS_INLINE
+void RemoveObjectForKeyOnThreadSecure(XMLock lock, id dic, id key)
+{
+    XM_Lock(lock);
+    [dic removeObjectForKey:key];
+    XM_UnLock(lock);
+}
+
+//NSUserDefaults是线程安全的，不要使用此方法
+/**
+ 设置<key, obj>
+ 
+ @param lock XMLock
+ @param dic NSMutableDictionary, NSMapTable, NSCache, <br/>NSUbiquitousKeyValueStore
+ @param key 键
+ @param obj 值
+ */
+NS_INLINE
+void SetObjectForKeyOnThreadSecure(XMLock lock, id dic, id key, id obj)
+{
+    XM_Lock(lock);
+    [dic setObject:obj forKey:key];
+    XM_UnLock(lock);
+}
+
+/*
+ NS_INLINE
+ void DeleteObjectsForKeysThreadSecure(XMLock lock, id dic, NSArray *keys)
+ {
+ //这些都可以写
+ XM_Lock(lock);
+ [dic removeObjectsInArray:keys];
+ [dic removeObjectsAtIndexes:[NSIndexSet indexSet]];
+ [dic removeObjectsInRange:NSMakeRange(0, 0)];
+ [dic removeObjectAtIndex:1];
+ [dic insertObject:[NSObject new] atIndex:1];
+ [dic insertObjects:keys atIndexes:[NSIndexSet indexSet]];
+ [dic addObjectsFromArray:keys];
+ XM_UnLock(lock);
+ }//*/
 
 #pragma mark - NSMutableArray
 //线程安全，数组删除实例

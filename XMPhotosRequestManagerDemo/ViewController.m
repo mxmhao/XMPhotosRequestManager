@@ -62,13 +62,13 @@
     NSLog(@"%@", arr);
     NSLog(@"%d", [arr isEqualToArray:arr1]);
     
-    NSMutableArray;
-    NSMutableDictionary;
-    NSMutableSet;
-    NSMutableOrderedSet;
-    NSHashTable;
-    NSMapTable;
-    NSPointerArray;
+//    NSMutableArray;
+//    NSMutableDictionary;
+//    NSMutableSet;
+//    NSMutableOrderedSet;
+//    NSHashTable;
+//    NSMapTable;
+//    NSPointerArray;
 }
 
 - (void)didReceiveMemoryWarning {
