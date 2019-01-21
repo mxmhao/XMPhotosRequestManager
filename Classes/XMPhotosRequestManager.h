@@ -93,7 +93,8 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic, assign, readonly) BOOL isAutoPaused;
 
-- (instancetype)initWithCacheDir:(NSString *)cacheDir NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initWithCacheDir:(NSString *)cacheDir NS_DESIGNATED_INITIALIZER;//导出的缓存目录
 
 - (void)addPHAssets:(NSArray<PHAsset *> *)phassets;
 - (void)deletePHAssets:(NSArray<PHAsset *> *)phassets;

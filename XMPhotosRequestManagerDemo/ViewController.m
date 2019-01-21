@@ -56,7 +56,7 @@
     
     [arr removeAllObjects];
     [[PHAsset fetchAssetsWithLocalIdentifiers:arr1 options:nil] enumerateObjectsUsingBlock:^(PHAsset * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSLog(@"%lu", idx);
+        NSLog(@"%lu", (unsigned long)idx);
         [arr addObject:obj.localIdentifier];
     }];
     NSLog(@"%@", arr);
