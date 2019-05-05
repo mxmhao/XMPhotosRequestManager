@@ -36,6 +36,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  当图片导出完成，但尚未保存到本地，会调用此方法。<br/>
+ 一般的方式编辑照片，会丢失照片的其他信息(Exif、GPS等)，请谨慎编辑；<br/>
+ 貌似CIContext类编辑照片，不会丢失照片的其他信息(Exif、GPS等)，也请谨慎。<br/>
  This method is called when the image export is complete but has not been saved to the local.
 
  @param manager XMPhotosRequestManager
@@ -92,6 +94,14 @@ NS_ASSUME_NONNULL_BEGIN
  Has it been automatic paused? Call -startRequest can continue to export.
  */
 @property (nonatomic, assign, readonly) BOOL isAutoPaused;
+
+/**
+ 把heif格式照片转成jpg格式，默认NO。<br/>
+ Convert photos in heif format to JPG format. Default NO
+ */
+@property (nonatomic, assign) BOOL convertPhotosInHeifToJPG NS_AVAILABLE_IOS(11_0);
+
++ (BOOL)isHEIF:(PHAsset *)phAsset;
 
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithCacheDir:(NSString *)cacheDir NS_DESIGNATED_INITIALIZER;//导出的缓存目录

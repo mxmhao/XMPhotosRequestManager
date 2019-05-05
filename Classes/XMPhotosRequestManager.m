@@ -77,6 +77,13 @@ typedef NS_ENUM(short, PHAssetStatus) {
     NSUInteger _exportedCount;
     XMLock _lock_exported;
     NSFileManager *_fm;
+    
+    CIContext *_ciContext;
+}
+
+- (CIContext *)cicontext
+{
+    return _ciContext;
 }
 
 - (instancetype)initWithCacheDir:(NSString *)cacheDir
@@ -508,6 +515,15 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
             return;//取消
         }
         
+        //如果是HEIF格式需要转码
+        if (@available(iOS 11.0, *)) {
+            if (this.convertPhotosInHeifToJPG && [XMPhotosRequestManager isHEIF:asset]) {
+                CIImage *ciImage = [CIImage imageWithData:imageData];
+                imageData = [this.cicontext JPEGRepresentationOfImage:ciImage colorSpace:ciImage.colorSpace options:@{}];
+//            dataUTI = AVFileTypeJPEG;
+            }
+        }
+        
         //3、没有导出错误
         //
         if ([delegate respondsToSelector:@selector(manager:editImageData:asset:dataUTI:orientation:)]) {
@@ -629,13 +645,13 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
 
 + (BOOL)isHEIF:(PHAsset *)phAsset
 {
-    __block BOOL isHEIF = NO;
+    BOOL isHEIF = NO;
     if (@available(iOS 11.0, *)) {
         NSArray *arr = [PHAssetResource assetResourcesForAsset:phAsset];
         NSString *UTI = nil;
         for (PHAssetResource *resource in arr) {
             UTI = resource.uniformTypeIdentifier;
-            if ([UTI isEqualToString:@"public.heif"] || [UTI isEqualToString:@"public.heic"]) {
+            if ([UTI isEqualToString:AVFileTypeHEIF] || [UTI isEqualToString:AVFileTypeHEIC]) {
                 isHEIF = YES;
                 break;
             }
@@ -647,5 +663,74 @@ static int const VideoMaxConcurrent = 1;//视频导出最大并发数
       }*/
     return isHEIF;
 }
+
+- (void)readImageinfo:(NSData *)imageData
+{
+    CGImageSourceRef imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
+    CFDictionaryRef imageProperty = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, NULL);
+    CFDictionaryRef exif = CFDictionaryGetValue(imageProperty, kCGImagePropertyExifDictionary);//获取图片的exif信息
+    NSLog(@"%@", imageProperty);
+    
+    CFRelease(imageSource);
+    CFRelease(imageProperty);
+    CFRelease(exif);
+}
+
+/*
+ - (NSData *)writeMeta:(NSData *)imageData with:(PHAsset *)asset
+ {
+ CGImageSourceRef imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
+ CFDictionaryRef imageProperty = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, NULL);
+ NSLog(@"old: %@", imageProperty);
+ 
+ CFMutableDictionaryRef metaDataDict = NULL;
+ CFStringRef date = (__bridge const CFStringRef)[_dft stringFromDate:asset.creationDate];
+ 
+ //--------修改 exif 中的时间 -------------
+ CFDictionaryRef exif = CFDictionaryGetValue(imageProperty, kCGImagePropertyExifDictionary);//获取图片的exif信息
+ if (NULL == CFDictionaryGetValue(exif, kCGImagePropertyExifDateTimeOriginal)) {
+ CFMutableDictionaryRef exifNew = CFDictionaryCreateMutableCopy(kCFAllocatorDefault,  CFDictionaryGetCount(exif), exif);
+ CFDictionarySetValue(exifNew, kCGImagePropertyExifDateTimeOriginal, date);
+ CFDictionarySetValue(exifNew, kCGImagePropertyExifDateTimeDigitized, date);
+ 
+ metaDataDict = CFDictionaryCreateMutableCopy(kCFAllocatorDefault,  CFDictionaryGetCount(imageProperty), imageProperty);
+ CFDictionarySetValue(metaDataDict, kCGImagePropertyExifDictionary, exifNew);
+ CFRelease(exifNew);
+ }
+ 
+ //------------修改 tiff 中的时间------------
+ CFDictionaryRef tiff = CFDictionaryGetValue(imageProperty, kCGImagePropertyTIFFDictionary);//获取图片的exif信息
+ if (NULL == CFDictionaryGetValue(tiff, kCGImagePropertyTIFFDateTime)) {
+ CFMutableDictionaryRef tiffNew = CFDictionaryCreateMutableCopy(kCFAllocatorDefault,  CFDictionaryGetCount(tiff), tiff);
+ CFDictionarySetValue(tiffNew, kCGImagePropertyTIFFDateTime, date);
+ 
+ if (NULL == metaDataDict) {
+ metaDataDict = CFDictionaryCreateMutableCopy(kCFAllocatorDefault,  CFDictionaryGetCount(imageProperty), imageProperty);
+ }
+ CFDictionarySetValue(metaDataDict, kCGImagePropertyTIFFDictionary, tiffNew);
+ CFRelease(tiffNew);
+ }
+ 
+ //-------------------生成图片------------------------
+ CFRelease(imageProperty);
+ if (NULL == metaDataDict) {
+ CFRelease(imageSource);
+ return imageData;
+ }
+ NSLog(@"new: %@", metaDataDict);
+ CFStringRef UTI = CGImageSourceGetType(imageSource);
+ NSMutableData *newImageData = [NSMutableData data];
+ CGImageDestinationRef destination = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)newImageData, UTI, 1,NULL);
+ 
+ CGImageDestinationAddImageFromSource(destination, imageSource, 0, metaDataDict);
+ CGImageDestinationFinalize(destination);
+ 
+ //
+ CFRelease(imageSource);
+ CFRelease(metaDataDict);
+ CFRelease(destination);
+ 
+ return newImageData;
+ }*/
 
 @end
